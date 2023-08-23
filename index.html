@@ -1,192 +1,102 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" type="text/css" href="style.css" />
-    <title>AudioTest</title>
-  </head>
-  <body>
-    <audio></audio>
-    <div class="box">
-      <div class="visualizer"></div>
-    </div>
-    <div class="play">
-      <div class="btn btn-play"></div>
-    </div>
-    <div class="options">
-      <label for="speed">Audio Speed:</label>
-      <select id="speed">
-        <option value="0.5">0.5x</option>
-        <option value="1" selected>1x</option>
-        <option value="1.5">1.5x</option>
-        <option value="2">2x</option>
-      </select>
-    </div>
-    <div class="duration">
-      <span id="current-time">0:00</span> /
-      <span id="total-duration">0:00</span>
-    </div>
-    <div class="color-picker">
-      <label for="bar-color">Bar Color:</label>
-      <input type="color" id="bar-color" value="#ffffff" />
-    </div>
-    <div class="file-input">
-      <label for="music-file">Choose a music file:</label>
-      <input type="file" id="music-file" />
-    </div>
-    <div class="timeline">
-      <div class="timeline-bars"></div>
-    </div>
-    <script type="module">
-      "use strict";
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <title>AudioTest</title>
+</head>
+<body>
+  <audio></audio>
+  <div class="box">
+    <div class="visualizer"></div>
+  </div>
+  <div class="play">
+    <div class="btn btn-play"></div>
+  </div>
+  <div class="options">
+    <label for="speed">Audio Speed:</label>
+    <select id="speed">
+      <option value="0.5">0.5x</option>
+      <option value="1" selected>1x</option>
+      <option value="1.5">1.5x</option>
+      <option value="2">2x</option>
+    </select>
+  </div>
+  <div class="duration">
+    <span id="current-time">0:00</span> /
+    <span id="total-duration">0:00</span>
+  </div>
+  <div class="color-picker">
+    <label for="bar-color">Bar Color:</label>
+    <input type="color" id="bar-color" value="#ffffff" />
+  </div>
+  <div class="file-input">
+    <label for="music-file">Choose a music file:</label>
+    <input type="file" id="music-file" />
+  </div>
+  <div class="timeline">
+    <div class="timeline-bars"></div>
+  </div>
+  <script type="module">
+    "use strict";
 
-      const btn = document.querySelector(".btn");
-      const audio = document.querySelector("audio");
-      const visualizer = document.querySelector(".visualizer");
-      const elements = [];
+    // Elements
+    const btn = document.querySelector(".btn");
+    const audio = document.querySelector("audio");
+    const visualizer = document.querySelector(".visualizer");
+    const elements = [];
+    const timestampSlider = document.getElementById("timestamp-slider");
 
-      const updatePlayButtonState = () => {
-        btn.classList.toggle("btn-play", audio.paused);
-        btn.classList.toggle("btn-pause", !audio.paused);
-      };
+    // Event Listeners
+    btn.addEventListener("click", handlePlayButtonClick);
+    speedSelect.addEventListener("change", handleSpeedChange);
+    barColorInput.addEventListener("input", handleBarColorChange);
+    musicFileInput.addEventListener("change", handleMusicFileChange);
+    timestampSlider.addEventListener("input", handleTimestampSlider);
+    timelineBars.addEventListener("click", handleTimelineClick);
 
-      btn.addEventListener("click", async (e) => {
-        if (audio.paused) {
-          try {
-            await audio.play();
-          } catch (error) {
-            console.error("Error playing audio:", error);
-          }
-        } else {
-          audio.pause();
+    // Initialize Audio Context and Analyzer
+    (async () => {
+      try {
+        window.AudioContext =
+          window.AudioContext || window.webkitAudioContext;
+        const ctx = new window.AudioContext();
+        const analyser = ctx.createAnalyser();
+        const source = ctx.createMediaElementSource(audio);
+        source.connect(analyser);
+        source.connect(ctx.destination);
+        analyser.fftSize = 64;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        for (let i = 0; i < bufferLength; i++) {
+          const element = document.createElement("div");
+          element.classList.add("element");
+          elements.push(element);
+          visualizer.appendChild(element);
         }
-        updatePlayButtonState();
-      });
 
-      const initAudio = (src) => {
-        if (!audio.paused) {
-          audio.pause();
-        }
-        audio.src = src;
-        audio.load();
-        audio
-          .play()
-          .then(() => {
-            updatePlayButtonState();
-          })
-          .catch((error) => {
-            console.error("Error playing audio:", error);
-          });
-      };
-
-      (async () => {
-        try {
-          window.AudioContext =
-            window.AudioContext || window.webkitAudioContext;
-          const ctx = new window.AudioContext();
-          const analyser = ctx.createAnalyser();
-          const source = ctx.createMediaElementSource(audio);
-          source.connect(analyser);
-          source.connect(ctx.destination);
-          analyser.fftSize = 64;
-          const bufferLength = analyser.frequencyBinCount;
-
-          const dataArray = new Uint8Array(bufferLength);
-
+        const updateVisualizer = () => {
+          requestAnimationFrame(updateVisualizer);
+          analyser.getByteFrequencyData(dataArray);
+          const maxBarHeight = visualizer.clientHeight;
+          const barWidth = visualizer.clientWidth / bufferLength;
           for (let i = 0; i < bufferLength; i++) {
-            const element = document.createElement("div");
-            element.classList.add("element");
-            elements.push(element);
-            visualizer.appendChild(element);
+            const barHeight = (dataArray[i] / 255) * maxBarHeight;
+            elements[i].style.height = `${barHeight}px`;
+            elements[i].style.width = `${barWidth}px`;
           }
-
-          const update = () => {
-            requestAnimationFrame(update);
-            analyser.getByteFrequencyData(dataArray);
-            const maxBarHeight = visualizer.clientHeight;
-            const barWidth = visualizer.clientWidth / bufferLength;
-            for (let i = 0; i < bufferLength; i++) {
-              const barHeight = (dataArray[i] / 255) * maxBarHeight;
-              elements[i].style.height = `${barHeight}px`;
-              elements[i].style.width = `${barWidth}px`;
-            }
-          };
-          update();
-        } catch (error) {
-          console.error("Error initializing audio:", error);
         }
-      })();
+        updateVisualizer();
+      } catch (error) {
+        console.error("Error initializing audio:", error);
+      }
+    })();
 
-      const currentTimeDisplay = document.getElementById("current-time");
-      const totalDurationDisplay = document.getElementById("total-duration");
+    // Other functions and event handlers
 
-      audio.addEventListener("timeupdate", () => {
-        const currentTime = audio.currentTime;
-        const minutes = Math.floor(currentTime / 60);
-        const seconds = Math.floor(currentTime % 60);
-        currentTimeDisplay.textContent = `${minutes}:${
-          seconds < 10 ? "0" : ""
-        }${seconds}`;
-
-        const totalDuration = audio.duration;
-        const totalMinutes = Math.floor(totalDuration / 60);
-        const totalSeconds = Math.floor(totalDuration % 60);
-        totalDurationDisplay.textContent = `${totalMinutes}:${
-          totalSeconds < 10 ? "0" : ""
-        }${totalSeconds}`;
-      });
-
-      const speedSelect = document.getElementById("speed");
-
-      speedSelect.addEventListener("change", (e) => {
-        const selectedSpeed = parseFloat(speedSelect.value);
-        audio.playbackRate = selectedSpeed;
-      });
-
-      const barColorInput = document.getElementById("bar-color");
-      barColorInput.addEventListener("input", (e) => {
-        const selectedColor = barColorInput.value;
-        for (const element of elements) {
-          element.style.background = selectedColor;
-        }
-      });
-
-      const musicFileInput = document.getElementById("music-file");
-
-      musicFileInput.addEventListener("change", (e) => {
-        const selectedFile = musicFileInput.files[0];
-        if (selectedFile) {
-          const objectURL = URL.createObjectURL(selectedFile);
-          initAudio(objectURL);
-        }
-      });
-
-      const timelineBars = document.querySelector(".timeline-bars");
-
-      const createTimelineBars = () => {
-        const numberOfBars = 10; // Adjust the number of bars as needed
-        for (let i = 0; i < numberOfBars; i++) {
-          const bar = document.createElement("div");
-          bar.classList.add("timeline-bar");
-          bar.style.left = `${(i / (numberOfBars - 1)) * 100}%`;
-          timelineBars.appendChild(bar);
-        }
-      };
-
-      createTimelineBars();
-
-      timelineBars.addEventListener("click", (e) => {
-        const clickPosition =
-          e.clientX - timelineBars.getBoundingClientRect().left;
-        const timelineWidth = timelineBars.clientWidth;
-        const percentClicked = clickPosition / timelineWidth;
-        const jumpTime = percentClicked * audio.duration;
-        audio.currentTime = jumpTime;
-      });
-
-      updatePlayButtonState();
-    </script>
-  </body>
+  </script>
+</body>
 </html>
